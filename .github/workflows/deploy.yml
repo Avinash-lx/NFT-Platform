@@ -1,0 +1,118 @@
+name: Deploy Solana programs
+
+# Builds and deploys the PRISM Anchor programs from CI (which has full network
+# access), using a deployer keypair stored as an encrypted secret.
+#
+# Setup (one-time):
+#   1. Create a deployer keypair locally:  solana-keygen new -o deployer.json
+#   2. Store its file contents as a repo/environment secret named DEPLOYER_KEYPAIR
+#      (the JSON array of bytes).
+#   3. For mainnet: fund the deployer address with enough SOL (a few SOL).
+#      For devnet: the workflow airdrops automatically.
+#   4. (Recommended) Add a GitHub Environment named "mainnet-beta" with required
+#      reviewers so production deploys need manual approval.
+#
+# Then run this workflow from the Actions tab and pick the cluster.
+
+on:
+  workflow_dispatch:
+    inputs:
+      cluster:
+        description: Target cluster
+        type: choice
+        options: [devnet, mainnet-beta]
+        default: devnet
+      fee_bps:
+        description: Marketplace fee in basis points
+        type: string
+        default: "250"
+      treasury:
+        description: Treasury pubkey for fees (blank = deployer address)
+        type: string
+        default: ""
+      init_marketplace:
+        description: Initialize the marketplace config after deploy
+        type: boolean
+        default: true
+
+concurrency: deploy-${{ github.event.inputs.cluster }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.cluster }}
+    env:
+      SOLANA_VERSION: v1.18.26
+      ANCHOR_VERSION: "0.30.1"
+      CLUSTER: ${{ github.event.inputs.cluster }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry
+            ~/.cargo/git
+            programs/target
+          key: ${{ runner.os }}-anchor-${{ env.ANCHOR_VERSION }}-${{ hashFiles('programs/**/Cargo.toml') }}
+
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/${SOLANA_VERSION}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+
+      - name: Install Anchor (avm)
+        run: |
+          if ! command -v anchor >/dev/null 2>&1; then
+            cargo install --git https://github.com/coral-xyz/anchor avm --force
+            avm install "${ANCHOR_VERSION}"
+            avm use "${ANCHOR_VERSION}"
+          fi
+
+      - name: Install workspace deps
+        working-directory: programs
+        run: npm install --no-audit --no-fund
+
+      - name: Write deployer keypair
+        run: |
+          if [ -z "${{ secrets.DEPLOYER_KEYPAIR }}" ]; then
+            echo "::error::DEPLOYER_KEYPAIR secret is not set"; exit 1
+          fi
+          printf '%s' '${{ secrets.DEPLOYER_KEYPAIR }}' > "$RUNNER_TEMP/deployer.json"
+          chmod 600 "$RUNNER_TEMP/deployer.json"
+
+      - name: Deploy
+        working-directory: programs
+        env:
+          DEPLOYER_KEYPAIR_PATH: ${{ runner.temp }}/deployer.json
+        run: bash scripts/deploy.sh "${CLUSTER}"
+
+      - name: Initialize marketplace
+        if: ${{ github.event.inputs.init_marketplace == 'true' }}
+        working-directory: programs
+        env:
+          ANCHOR_WALLET: ${{ runner.temp }}/deployer.json
+          ANCHOR_PROVIDER_URL: ${{ github.event.inputs.cluster == 'mainnet-beta' && 'https://api.mainnet-beta.solana.com' || 'https://api.devnet.solana.com' }}
+          MARKETPLACE_FEE_BPS: ${{ github.event.inputs.fee_bps }}
+          TREASURY_PUBKEY: ${{ github.event.inputs.treasury }}
+        run: npx ts-node scripts/init-marketplace.ts
+
+      - name: Publish program IDs
+        if: always()
+        working-directory: programs
+        run: |
+          {
+            echo "## Deployed program IDs (${CLUSTER})"
+            echo '```'
+            anchor keys list || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Clean up keypair
+        if: always()
+        run: rm -f "$RUNNER_TEMP/deployer.json"

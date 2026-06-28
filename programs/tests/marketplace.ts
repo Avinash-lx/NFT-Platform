@@ -35,7 +35,7 @@ describe("marketplace_program", () => {
 
   const [configPda] = PublicKey.findProgramAddressSync(
     [Buffer.from("marketplace")],
-    program.programId
+    program.programId,
   );
 
   const price = new anchor.BN(LAMPORTS_PER_SOL); // 1 SOL
@@ -45,7 +45,7 @@ describe("marketplace_program", () => {
     for (const kp of [seller, buyer]) {
       const sig = await provider.connection.requestAirdrop(
         kp.publicKey,
-        2 * LAMPORTS_PER_SOL
+        2 * LAMPORTS_PER_SOL,
       );
       await provider.connection.confirmTransaction(sig);
     }
@@ -56,13 +56,13 @@ describe("marketplace_program", () => {
       seller,
       seller.publicKey,
       null,
-      0
+      0,
     );
     sellerAta = await createAssociatedTokenAccount(
       provider.connection,
       seller,
       mint,
-      seller.publicKey
+      seller.publicKey,
     );
     await mintTo(provider.connection, seller, mint, sellerAta, seller, 1);
   });
@@ -86,7 +86,7 @@ describe("marketplace_program", () => {
   it("lists an NFT into escrow", async () => {
     const [listingPda] = PublicKey.findProgramAddressSync(
       [Buffer.from("listing"), seller.publicKey.toBuffer(), mint.toBuffer()],
-      program.programId
+      program.programId,
     );
     const escrowAta = getAssociatedTokenAddressSync(mint, listingPda, true);
 
@@ -115,13 +115,13 @@ describe("marketplace_program", () => {
   it("lets a buyer purchase the NFT", async () => {
     const [listingPda] = PublicKey.findProgramAddressSync(
       [Buffer.from("listing"), seller.publicKey.toBuffer(), mint.toBuffer()],
-      program.programId
+      program.programId,
     );
     const escrowAta = getAssociatedTokenAddressSync(mint, listingPda, true);
     const buyerAta = getAssociatedTokenAddressSync(mint, buyer.publicKey);
 
     const treasuryBefore = await provider.connection.getBalance(
-      treasury.publicKey
+      treasury.publicKey,
     );
 
     await program.methods
@@ -146,7 +146,7 @@ describe("marketplace_program", () => {
     assert.equal(Number(buyerToken.amount), 1);
 
     const treasuryAfter = await provider.connection.getBalance(
-      treasury.publicKey
+      treasury.publicKey,
     );
     // 2.5% of 1 SOL.
     assert.equal(treasuryAfter - treasuryBefore, 0.025 * LAMPORTS_PER_SOL);

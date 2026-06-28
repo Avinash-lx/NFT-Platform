@@ -77,6 +77,60 @@ npm install
 npm run dev                   # http://localhost:3000
 ```
 
+## Deploying the programs (real on-chain)
+
+Programs are deployed with the Solana CLI using a **deployer keypair** that
+becomes the upgrade authority — not through a browser wallet. Browser wallets
+(Phantom/Solflare/Backpack) sign end-user transactions (mint/list/buy), which are
+already wired in the frontend.
+
+### Option A — GitHub Actions (no local toolchain)
+
+1. Create a deployer keypair: `solana-keygen new -o deployer.json`.
+2. Add its file contents as a repo (or Environment) secret named
+   `DEPLOYER_KEYPAIR`.
+3. Mainnet only: fund the deployer address with a few SOL. (Devnet airdrops
+   automatically.)
+4. Run the **“Deploy Solana programs”** workflow from the Actions tab and pick
+   the cluster (`devnet` or `mainnet-beta`). The deployed program IDs are printed
+   to the run summary.
+
+For production, add a GitHub Environment named `mainnet-beta` with required
+reviewers so mainnet deploys need approval.
+
+### Option B — Local (one command)
+
+Requires the Solana + Anchor toolchain:
+
+```bash
+sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
+cargo install --git https://github.com/coral-xyz/anchor avm --force
+avm install 0.30.1 && avm use 0.30.1
+```
+
+Then from `programs/`:
+
+```bash
+npm install
+./scripts/deploy.sh devnet            # or: mainnet-beta
+# initialize the marketplace config (treasury + fee):
+ANCHOR_PROVIDER_URL=https://api.devnet.solana.com \
+ANCHOR_WALLET=~/.config/solana/id.json \
+TREASURY_PUBKEY=<your_treasury_pubkey> MARKETPLACE_FEE_BPS=250 \
+  npx ts-node scripts/init-marketplace.ts
+```
+
+`deploy.sh` builds, runs `anchor keys sync` so each program's `declare_id!` and
+`Anchor.toml` match the deployed address, deploys, and writes the
+`NEXT_PUBLIC_*_PROGRAM_ID` values into `frontend/.env.local`, `backend/.env`, and
+the root `.env`.
+
+> **Network note:** building/deploying needs outbound access to
+> `release.anza.xyz`, `github.com`, and the cluster RPC
+> (`api.devnet.solana.com` / `api.mainnet-beta.solana.com`). A restricted egress
+> policy (e.g. some Claude Code on the web network modes) blocks these, so run
+> the deploy from a machine or CI runner with open network access.
+
 ## Environment Variables
 
 See `.env.example` at the repo root and inside `frontend/` and `backend/`.
