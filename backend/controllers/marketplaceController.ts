@@ -143,9 +143,12 @@ const buySchema = z.object({
 });
 
 /**
- * Settle a purchase after the on-chain `buy_nft` instruction confirms:
- * mark the listing sold, transfer ownership, record the purchase + fee, and
- * award loyalty points (+10 per 1 SOL). Runs in a single DB transaction.
+ * Index a purchase after the on-chain `buy_nft` instruction confirms: mark the
+ * listing sold, transfer ownership, and record the purchase + fee.
+ *
+ * Loyalty points are credited ON-CHAIN by `buy_nft` (CPI into the rewards
+ * program); the value mirrored here is a cache for dashboard display using the
+ * same formula (floor(priceSol × 10)), not the source of truth.
  */
 export async function buyNft(req: Request, res: Response): Promise<void> {
   const parsed = buySchema.safeParse(req.body);

@@ -12,11 +12,14 @@ use anchor_lang::prelude::*;
 use anchor_lang::system_program;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{self, CloseAccount, Mint, Token, TokenAccount, Transfer};
+use rewards_program::program::RewardsProgram;
 
 declare_id!("MKT1111111111111111111111111111111111111111");
 
 /// Hard cap on the marketplace fee to protect users (10%).
 const MAX_FEE_BPS: u16 = 1_000;
+/// Lamports per loyalty point: 10 points per SOL → 1 point per 0.1 SOL.
+const LAMPORTS_PER_POINT: u64 = 100_000_000;
 /// Basis-point denominator.
 const BPS_DENOMINATOR: u64 = 10_000;
 
@@ -154,12 +157,37 @@ pub mod marketplace_program {
             signer_seeds,
         ))?;
 
+        // Credit loyalty points on-chain via CPI into the rewards program.
+        // points = purchase amount (SOL) × 10 = lamports / 100_000_000.
+        let points = price / LAMPORTS_PER_POINT;
+        if points > 0 {
+            let rewards_authority_bump = ctx.bumps.rewards_authority;
+            let rewards_signer: &[&[&[u8]]] =
+                &[&[b"rewards_authority", &[rewards_authority_bump]]];
+            rewards_program::cpi::add_points(
+                CpiContext::new_with_signer(
+                    ctx.accounts.rewards_program.to_account_info(),
+                    rewards_program::cpi::accounts::AddPoints {
+                        payer: ctx.accounts.buyer.to_account_info(),
+                        user: ctx.accounts.buyer.to_account_info(),
+                        config: ctx.accounts.rewards_config.to_account_info(),
+                        authority: ctx.accounts.rewards_authority.to_account_info(),
+                        reward_account: ctx.accounts.reward_account.to_account_info(),
+                        system_program: ctx.accounts.system_program.to_account_info(),
+                    },
+                    rewards_signer,
+                ),
+                points,
+            )?;
+        }
+
         emit!(NftSold {
             seller: seller_key,
             buyer: ctx.accounts.buyer.key(),
             mint: mint_key,
             price,
             fee,
+            points,
         });
         Ok(())
     }
@@ -299,6 +327,18 @@ pub struct BuyNft<'info> {
         associated_token::authority = buyer,
     )]
     pub buyer_token_account: Account<'info, TokenAccount>,
+
+    // ── Rewards CPI accounts ───────────────────────────────────────────
+    /// CHECK: rewards program config PDA; validated inside the rewards program.
+    pub rewards_config: UncheckedAccount<'info>,
+    /// CHECK: buyer's reward account PDA (created by the rewards program if new).
+    #[account(mut)]
+    pub reward_account: UncheckedAccount<'info>,
+    /// CHECK: PDA signer this program uses to authorize point accrual.
+    #[account(seeds = [b"rewards_authority"], bump)]
+    pub rewards_authority: UncheckedAccount<'info>,
+    pub rewards_program: Program<'info, RewardsProgram>,
+
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
@@ -384,6 +424,7 @@ pub struct NftSold {
     pub mint: Pubkey,
     pub price: u64,
     pub fee: u64,
+    pub points: u64,
 }
 
 #[event]

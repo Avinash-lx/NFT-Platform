@@ -179,6 +179,19 @@ export const IDL = {
           "writable": true
         },
         {
+          "name": "rewards_config"
+        },
+        {
+          "name": "reward_account",
+          "writable": true
+        },
+        {
+          "name": "rewards_authority"
+        },
+        {
+          "name": "rewards_program"
+        },
+        {
           "name": "token_program"
         },
         {

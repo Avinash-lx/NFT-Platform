@@ -64,10 +64,16 @@ frontend SDK:
 - **Listing / buying / cancelling** → `marketplace_program.list_nft` /
   `buy_nft` / `cancel_listing`, with the NFT held in an escrow PDA and the fee
   routed to the treasury. Requires `NEXT_PUBLIC_MARKETPLACE_PROGRAM_ID`.
+- **Loyalty points** are credited **on-chain**: `buy_nft` CPIs into
+  `rewards_program.add_points` (10 points per SOL). Accrual is authorized by a
+  marketplace-owned PDA, so points can't be minted by the backend or arbitrary
+  callers. Requires `NEXT_PUBLIC_REWARDS_PROGRAM_ID`, and `init-marketplace.ts`
+  wires the rewards config authority to the marketplace PDA.
 
-The backend is only a cache/index: it records results after the on-chain
-transaction confirms. `anchor test` exercises both the mint (Token Metadata is
-cloned into the local validator) and the list → buy flow.
+The backend is only a cache/index: it records results (including a mirror of the
+on-chain points) after the transaction confirms. `anchor test` exercises the
+mint (Token Metadata cloned into the local validator) and the list → buy flow,
+asserting points are credited via CPI.
 
 ### 2. Backend
 

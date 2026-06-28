@@ -21,6 +21,17 @@ function programId(): PublicKey {
   return new PublicKey(id);
 }
 
+/** Resolve the deployed rewards program id (needed for on-chain point accrual). */
+function rewardsProgramId(): PublicKey {
+  const id = PROGRAM_IDS.rewards;
+  if (!id || id.startsWith("RWD1111")) {
+    throw new Error(
+      "Rewards program is not deployed. Set NEXT_PUBLIC_REWARDS_PROGRAM_ID to the deployed address."
+    );
+  }
+  return new PublicKey(id);
+}
+
 /** Build an Anchor Program bound to the connected wallet. */
 function getProgram(wallet: WalletContextState): Program {
   if (!wallet.publicKey || !wallet.signTransaction || !wallet.signAllTransactions) {
@@ -46,6 +57,30 @@ export function marketplaceConfigPda(): PublicKey {
 export function listingPda(seller: PublicKey, mint: PublicKey): PublicKey {
   return PublicKey.findProgramAddressSync(
     [Buffer.from("listing"), seller.toBuffer(), mint.toBuffer()],
+    programId()
+  )[0];
+}
+
+/** Rewards config PDA (in the rewards program). */
+export function rewardsConfigPda(): PublicKey {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("rewards_config")],
+    rewardsProgramId()
+  )[0];
+}
+
+/** A user's reward account PDA (in the rewards program). */
+export function rewardAccountPda(user: PublicKey): PublicKey {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("rewards"), user.toBuffer()],
+    rewardsProgramId()
+  )[0];
+}
+
+/** Marketplace's rewards-authority PDA that signs the points CPI. */
+export function rewardsAuthorityPda(): PublicKey {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from("rewards_authority")],
     programId()
   )[0];
 }
@@ -112,6 +147,10 @@ export async function buyNftOnChain(
       listing,
       escrowTokenAccount: getAssociatedTokenAddressSync(mint, listing, true),
       buyerTokenAccount: getAssociatedTokenAddressSync(mint, buyer),
+      rewardsConfig: rewardsConfigPda(),
+      rewardAccount: rewardAccountPda(buyer),
+      rewardsAuthority: rewardsAuthorityPda(),
+      rewardsProgram: rewardsProgramId(),
       tokenProgram: TOKEN_PROGRAM_ID,
       associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
       systemProgram: SystemProgram.programId,

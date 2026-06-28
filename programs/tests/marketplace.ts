@@ -17,6 +17,7 @@ import {
 } from "@solana/spl-token";
 import { assert } from "chai";
 import { MarketplaceProgram } from "../target/types/marketplace_program";
+import { RewardsProgram } from "../target/types/rewards_program";
 
 describe("marketplace_program", () => {
   const provider = anchor.AnchorProvider.env();
@@ -24,8 +25,19 @@ describe("marketplace_program", () => {
 
   const program = anchor.workspace
     .MarketplaceProgram as Program<MarketplaceProgram>;
+  const rewardsProgram = anchor.workspace
+    .RewardsProgram as Program<RewardsProgram>;
 
   const authority = provider.wallet as anchor.Wallet;
+
+  const [rewardsAuthority] = PublicKey.findProgramAddressSync(
+    [Buffer.from("rewards_authority")],
+    program.programId,
+  );
+  const [rewardsConfig] = PublicKey.findProgramAddressSync(
+    [Buffer.from("rewards_config")],
+    rewardsProgram.programId,
+  );
   const treasury = Keypair.generate();
   const seller = Keypair.generate();
   const buyer = Keypair.generate();
@@ -83,6 +95,20 @@ describe("marketplace_program", () => {
     assert.ok(config.treasury.equals(treasury.publicKey));
   });
 
+  it("initializes the rewards config (authority = marketplace PDA)", async () => {
+    await rewardsProgram.methods
+      .initializeConfig(rewardsAuthority)
+      .accounts({
+        payer: authority.publicKey,
+        config: rewardsConfig,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    const cfg = await rewardsProgram.account.rewardsConfig.fetch(rewardsConfig);
+    assert.ok(cfg.authority.equals(rewardsAuthority));
+  });
+
   it("lists an NFT into escrow", async () => {
     const [listingPda] = PublicKey.findProgramAddressSync(
       [Buffer.from("listing"), seller.publicKey.toBuffer(), mint.toBuffer()],
@@ -120,6 +146,11 @@ describe("marketplace_program", () => {
     const escrowAta = getAssociatedTokenAddressSync(mint, listingPda, true);
     const buyerAta = getAssociatedTokenAddressSync(mint, buyer.publicKey);
 
+    const [rewardAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from("rewards"), buyer.publicKey.toBuffer()],
+      rewardsProgram.programId,
+    );
+
     const treasuryBefore = await provider.connection.getBalance(
       treasury.publicKey,
     );
@@ -135,6 +166,10 @@ describe("marketplace_program", () => {
         listing: listingPda,
         escrowTokenAccount: escrowAta,
         buyerTokenAccount: buyerAta,
+        rewardsConfig,
+        rewardAccount,
+        rewardsAuthority,
+        rewardsProgram: rewardsProgram.programId,
         tokenProgram: TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
@@ -150,5 +185,10 @@ describe("marketplace_program", () => {
     );
     // 2.5% of 1 SOL.
     assert.equal(treasuryAfter - treasuryBefore, 0.025 * LAMPORTS_PER_SOL);
+
+    // Points credited on-chain via CPI: 1 SOL × 10 = 10 points.
+    const reward =
+      await rewardsProgram.account.rewardAccount.fetch(rewardAccount);
+    assert.equal(Number(reward.points), 10);
   });
 });

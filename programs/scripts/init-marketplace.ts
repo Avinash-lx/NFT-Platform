@@ -1,8 +1,9 @@
 /**
- * Initialize the PRISM marketplace config (one-time, post-deploy).
+ * Initialize PRISM on-chain config (one-time, post-deploy). Idempotent.
  *
- * Sets the fee authority, the treasury that collects marketplace fees, and the
- * fee in basis points. Idempotent: exits cleanly if already initialized.
+ * 1. marketplace config — authority + treasury + fee.
+ * 2. rewards config — authority set to the marketplace's `rewards_authority`
+ *    PDA, so only the marketplace `buy_nft` CPI can credit loyalty points.
  *
  * Usage (run from the `programs/` directory after `anchor build` + deploy):
  *   ANCHOR_PROVIDER_URL=https://api.devnet.solana.com \
@@ -15,23 +16,26 @@ import { PublicKey, SystemProgram } from "@solana/web3.js";
 import fs from "fs";
 import path from "path";
 
-async function main() {
-  const provider = anchor.AnchorProvider.env();
-  anchor.setProvider(provider);
-
-  const idlPath = path.join(
-    __dirname,
-    "..",
-    "target",
-    "idl",
-    "marketplace_program.json",
-  );
+function loadProgram(
+  name: string,
+  provider: anchor.AnchorProvider,
+): anchor.Program {
+  const idlPath = path.join(__dirname, "..", "target", "idl", `${name}.json`);
   if (!fs.existsSync(idlPath)) {
     throw new Error(`IDL not found at ${idlPath}. Run \`anchor build\` first.`);
   }
   const idl = JSON.parse(fs.readFileSync(idlPath, "utf8"));
-  const program = new anchor.Program(idl, provider);
+  return new anchor.Program(idl, provider);
+}
 
+async function main() {
+  const provider = anchor.AnchorProvider.env();
+  anchor.setProvider(provider);
+
+  const marketplace = loadProgram("marketplace_program", provider);
+  const rewards = loadProgram("rewards_program", provider);
+
+  // ── 1. Marketplace config ────────────────────────────────────────────
   const feeBps = Number.parseInt(process.env.MARKETPLACE_FEE_BPS ?? "250", 10);
   const treasury = process.env.TREASURY_PUBKEY
     ? new PublicKey(process.env.TREASURY_PUBKEY)
@@ -39,34 +43,57 @@ async function main() {
 
   const [configPda] = PublicKey.findProgramAddressSync(
     [Buffer.from("marketplace")],
-    program.programId,
+    marketplace.programId,
   );
 
-  // Skip if already initialized.
-  const existing = await provider.connection.getAccountInfo(configPda);
-  if (existing) {
+  if (await provider.connection.getAccountInfo(configPda)) {
     console.log(`Marketplace already initialized at ${configPda.toBase58()}`);
-    return;
+  } else {
+    console.log(`Treasury: ${treasury.toBase58()}  Fee: ${feeBps} bps`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sig = await (marketplace.methods as any)
+      .initializeMarketplace(feeBps)
+      .accounts({
+        authority: provider.wallet.publicKey,
+        treasury,
+        config: configPda,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+    console.log(
+      `Initialized marketplace config ${configPda.toBase58()} (${sig})`,
+    );
   }
 
-  console.log(`Program:  ${program.programId.toBase58()}`);
-  console.log(`Authority:${provider.wallet.publicKey.toBase58()}`);
-  console.log(`Treasury: ${treasury.toBase58()}`);
-  console.log(`Fee:      ${feeBps} bps`);
+  // ── 2. Rewards config (authority = marketplace rewards_authority PDA) ──
+  const [rewardsAuthority] = PublicKey.findProgramAddressSync(
+    [Buffer.from("rewards_authority")],
+    marketplace.programId,
+  );
+  const [rewardsConfig] = PublicKey.findProgramAddressSync(
+    [Buffer.from("rewards_config")],
+    rewards.programId,
+  );
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sig = await (program.methods as any)
-    .initializeMarketplace(feeBps)
-    .accounts({
-      authority: provider.wallet.publicKey,
-      treasury,
-      config: configPda,
-      systemProgram: SystemProgram.programId,
-    })
-    .rpc();
-
-  console.log(`Initialized marketplace config ${configPda.toBase58()}`);
-  console.log(`Signature: ${sig}`);
+  if (await provider.connection.getAccountInfo(rewardsConfig)) {
+    console.log(
+      `Rewards config already initialized at ${rewardsConfig.toBase58()}`,
+    );
+  } else {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sig = await (rewards.methods as any)
+      .initializeConfig(rewardsAuthority)
+      .accounts({
+        payer: provider.wallet.publicKey,
+        config: rewardsConfig,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+    console.log(
+      `Initialized rewards config ${rewardsConfig.toBase58()} ` +
+        `(authority = ${rewardsAuthority.toBase58()}) (${sig})`,
+    );
+  }
 }
 
 main().catch((err) => {
