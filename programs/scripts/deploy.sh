@@ -135,8 +135,29 @@ write_public_ids "$REPO/frontend/.env.local"
 write_public_ids "$REPO/backend/.env"
 write_public_ids "$REPO/.env"
 
+# Record the deployment (public program IDs — safe to commit). Consumed by
+# scripts/verify-deployment.ts and the verify workflow.
+mkdir -p "$HERE/deployments"
+cat > "$HERE/deployments/$CLUSTER.json" <<JSON
+{
+  "cluster": "$CLUSTER",
+  "rpcUrl": "$RPC_URL",
+  "deployedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "programs": {
+    "marketplace_program": "$MARKETPLACE_ID",
+    "rewards_program": "$REWARDS_ID",
+    "cashback_program": "$CASHBACK_ID",
+    "escrow_program": "$ESCROW_ID",
+    "nft_program": "$NFT_ID",
+    "royalty_program": "$ROYALTY_ID"
+  }
+}
+JSON
+
 echo
 echo "==> Program IDs written to frontend/.env.local, backend/.env, .env"
+echo "==> Deployment record: programs/deployments/$CLUSTER.json (commit this)"
+echo "==> Verify on-chain: npx ts-node scripts/verify-deployment.ts $CLUSTER"
 echo "==> Next: initialize the marketplace config (treasury + fee):"
 echo "    ANCHOR_PROVIDER_URL=$RPC_URL ANCHOR_WALLET=$KEYPAIR \\"
 echo "      TREASURY_PUBKEY=<your_treasury> MARKETPLACE_FEE_BPS=250 \\"

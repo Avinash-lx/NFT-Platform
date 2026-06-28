@@ -1,0 +1,39 @@
+name: Verify deployment
+
+# Post-deploy smoke check: connects to the cluster RPC and confirms every PRISM
+# program account exists, is executable, and is owned by the upgradeable BPF
+# loader. Reads program IDs from programs/deployments/<cluster>.json (committed
+# by the deploy step) or from NEXT_PUBLIC_*_PROGRAM_ID variables.
+#
+# Runs automatically after a successful "Deploy Solana programs" run, and can be
+# triggered manually for any cluster.
+
+on:
+  workflow_dispatch:
+    inputs:
+      cluster:
+        description: Cluster to verify
+        type: choice
+        options: [devnet, mainnet-beta]
+        default: devnet
+  workflow_run:
+    workflows: ["Deploy Solana programs"]
+    types: [completed]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install workspace deps
+        working-directory: programs
+        run: npm install --no-audit --no-fund
+
+      - name: Verify programs on-chain
+        working-directory: programs
+        run: npx ts-node scripts/verify-deployment.ts "${{ github.event.inputs.cluster || 'devnet' }}"

@@ -121,9 +121,24 @@ TREASURY_PUBKEY=<your_treasury_pubkey> MARKETPLACE_FEE_BPS=250 \
 ```
 
 `deploy.sh` builds, runs `anchor keys sync` so each program's `declare_id!` and
-`Anchor.toml` match the deployed address, deploys, and writes the
+`Anchor.toml` match the deployed address, deploys, writes the
 `NEXT_PUBLIC_*_PROGRAM_ID` values into `frontend/.env.local`, `backend/.env`, and
-the root `.env`.
+the root `.env`, and records the public program IDs in
+`programs/deployments/<cluster>.json` (commit this file).
+
+### Verify a deployment
+
+After deploying, confirm every program is live and executable on-chain:
+
+```bash
+cd programs && npx ts-node scripts/verify-deployment.ts devnet   # or mainnet-beta
+```
+
+It checks each program account is executable and owned by the upgradeable BPF
+loader, and reports whether the marketplace config PDA is initialized. The
+**“Verify deployment”** GitHub workflow runs this automatically after a deploy
+(and can be triggered manually), reading
+`programs/deployments/<cluster>.json`.
 
 > **Network note:** building/deploying needs outbound access to
 > `release.anza.xyz`, `github.com`, and the cluster RPC

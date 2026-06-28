@@ -9,7 +9,8 @@
     "test": "anchor test",
     "deploy:devnet": "bash scripts/deploy.sh devnet",
     "deploy:mainnet": "bash scripts/deploy.sh mainnet-beta",
-    "init-marketplace": "ts-node scripts/init-marketplace.ts"
+    "init-marketplace": "ts-node scripts/init-marketplace.ts",
+    "verify": "ts-node scripts/verify-deployment.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.30.1",
