@@ -50,5 +50,7 @@ export async function findNftByMint(
   mint: string
 ): Promise<Nft> {
   const metaplex = getMetaplex(wallet);
-  return metaplex.nfts().findByMint({ mintAddress: new PublicKey(mint) });
+  // findByMint resolves to Nft | Sft | …; for our minted NFTs it's an Nft.
+  const asset = await metaplex.nfts().findByMint({ mintAddress: new PublicKey(mint) });
+  return asset as Nft;
 }

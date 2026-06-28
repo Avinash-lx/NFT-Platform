@@ -4,26 +4,26 @@ import {
   WalletProvider as SolanaWalletProvider,
 } from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
-import {
-  PhantomWalletAdapter,
-  SolflareWalletAdapter,
-  BackpackWalletAdapter,
-} from "@solana/wallet-adapter-wallets";
+// Import adapters from their individual packages rather than the
+// `@solana/wallet-adapter-wallets` meta-package, which pulls a large dependency
+// tree (Ledger, etc.) with ESM resolution issues under Next's server bundler.
+import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
+import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
 import { RPC_URL } from "@/lib/constants";
 
 import "@solana/wallet-adapter-react-ui/styles.css";
 
 /**
- * Wraps the app with Solana connection + wallet adapter context for Phantom,
- * Solflare, and Backpack. Wallet state persists across the app via this context.
+ * Wraps the app with Solana connection + wallet adapter context.
+ *
+ * Phantom and Solflare are registered explicitly. Backpack implements the
+ * Wallet Standard and is auto-detected by the adapter when installed, so it
+ * appears in the wallet modal without a dedicated adapter. Wallet state persists
+ * across the app via this context.
  */
 export const WalletProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const wallets = useMemo(
-    () => [
-      new PhantomWalletAdapter(),
-      new SolflareWalletAdapter(),
-      new BackpackWalletAdapter(),
-    ],
+    () => [new PhantomWalletAdapter(), new SolflareWalletAdapter()],
     []
   );
 
