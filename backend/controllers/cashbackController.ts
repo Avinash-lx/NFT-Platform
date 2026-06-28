@@ -1,15 +1,10 @@
 import { Request, Response } from "express";
-import {
-  LAMPORTS_PER_SOL,
-  PublicKey,
-  SystemProgram,
-  Transaction,
-  sendAndConfirmTransaction,
-} from "@solana/web3.js";
+import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { ApiError, jsonSafe } from "../lib/http";
-import { connection, isValidPublicKey, loadTreasuryKeypair } from "../lib/solana";
+import { isValidPublicKey, loadTreasuryKeypair } from "../lib/solana";
+import { payCashbackOnChain } from "../lib/cashbackProgram";
 import { tierForPoints } from "../rewards/rewardsEngine";
 import { evaluateEligibility } from "../cashback/cashbackEngine";
 import { config } from "../config";
@@ -54,9 +49,10 @@ const requestSchema = z.object({
 });
 
 /**
- * POST /cashback/request — verify eligibility, pay 5% from the treasury wallet,
- * and record the claim. The unique (userId, mint) constraint prevents
- * double-claims even under concurrent requests.
+ * POST /cashback/request — verify eligibility off-chain, then settle 5%
+ * **on-chain** via `cashback_program.request_cashback`. The program records the
+ * claim PDA (single-claim per user+mint) and transfers from the treasury PDA;
+ * the backend mirrors the result in the DB for indexing.
  */
 export async function requestCashback(req: Request, res: Response): Promise<void> {
   const parsed = requestSchema.safeParse(req.body);
@@ -73,24 +69,21 @@ export async function requestCashback(req: Request, res: Response): Promise<void
     throw new ApiError(400, `Not eligible: ${eligibility.reasons.join("; ")}`);
   }
 
-  const amountLamports = BigInt(Math.round(eligibility.amountSol * LAMPORTS_PER_SOL));
-
-  // Pay out from the treasury if a key is configured (devnet/mainnet); otherwise
-  // record the claim without an on-chain signature for local development.
+  // Settle on-chain through the cashback program (computes 5% itself).
   let signature: string | undefined;
+  let amountLamports = BigInt(Math.round(eligibility.amountSol * LAMPORTS_PER_SOL));
   const treasury = loadTreasuryKeypair();
   if (treasury) {
     try {
-      const tx = new Transaction().add(
-        SystemProgram.transfer({
-          fromPubkey: treasury.publicKey,
-          toPubkey: new PublicKey(wallet),
-          lamports: Number(amountLamports),
-        })
+      const result = await payCashbackOnChain(
+        wallet,
+        purchase.nft.mint,
+        BigInt(purchase.priceLamports.toString())
       );
-      signature = await sendAndConfirmTransaction(connection, tx, [treasury]);
+      signature = result.signature;
+      amountLamports = result.amountLamports;
     } catch (err) {
-      throw new ApiError(502, `Treasury transfer failed: ${(err as Error).message}`);
+      throw new ApiError(502, `On-chain cashback failed: ${(err as Error).message}`);
     }
   } else if (config.env === "production") {
     throw new ApiError(500, "Treasury wallet not configured");

@@ -70,10 +70,17 @@ frontend SDK:
   callers. Requires `NEXT_PUBLIC_REWARDS_PROGRAM_ID`, and `init-marketplace.ts`
   wires the rewards config authority to the marketplace PDA.
 
+- **Cashback** is settled **on-chain** by `cashback_program.request_cashback`:
+  the program records a claim PDA (one per user+mint, so double-claims are
+  rejected on-chain) and pays 5% from the treasury PDA. The backend attests
+  off-chain eligibility (Diamond/promo, ≥7-day hold) and signs as the treasury
+  authority. Requires `CASHBACK_PROGRAM_ID` and a funded cashback treasury PDA.
+
 The backend is only a cache/index: it records results (including a mirror of the
-on-chain points) after the transaction confirms. `anchor test` exercises the
-mint (Token Metadata cloned into the local validator) and the list → buy flow,
-asserting points are credited via CPI.
+on-chain points and cashback) after the transaction confirms. `anchor test`
+exercises the on-chain mint (Token Metadata cloned into the local validator),
+the list → buy flow (asserting points credited via CPI), and the cashback
+payout.
 
 ### 2. Backend
 

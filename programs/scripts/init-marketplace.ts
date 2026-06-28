@@ -34,6 +34,7 @@ async function main() {
 
   const marketplace = loadProgram("marketplace_program", provider);
   const rewards = loadProgram("rewards_program", provider);
+  const cashback = loadProgram("cashback_program", provider);
 
   // ── 1. Marketplace config ────────────────────────────────────────────
   const feeBps = Number.parseInt(process.env.MARKETPLACE_FEE_BPS ?? "250", 10);
@@ -92,6 +93,38 @@ async function main() {
     console.log(
       `Initialized rewards config ${rewardsConfig.toBase58()} ` +
         `(authority = ${rewardsAuthority.toBase58()}) (${sig})`,
+    );
+  }
+
+  // ── 3. Cashback treasury (authority = backend treasury wallet) ─────────
+  const cashbackAuthority = process.env.CASHBACK_AUTHORITY_PUBKEY
+    ? new PublicKey(process.env.CASHBACK_AUTHORITY_PUBKEY)
+    : treasury;
+  const [cashbackTreasury] = PublicKey.findProgramAddressSync(
+    [Buffer.from("cashback_treasury")],
+    cashback.programId,
+  );
+
+  if (await provider.connection.getAccountInfo(cashbackTreasury)) {
+    console.log(
+      `Cashback treasury already initialized at ${cashbackTreasury.toBase58()}`,
+    );
+  } else {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sig = await (cashback.methods as any)
+      .initializeTreasury(cashbackAuthority)
+      .accounts({
+        authority: provider.wallet.publicKey,
+        treasury: cashbackTreasury,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+    console.log(
+      `Initialized cashback treasury ${cashbackTreasury.toBase58()} ` +
+        `(authority = ${cashbackAuthority.toBase58()}) (${sig})`,
+    );
+    console.log(
+      `  → Fund it by sending SOL to ${cashbackTreasury.toBase58()} so cashback can be paid.`,
     );
   }
 }

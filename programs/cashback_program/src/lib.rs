@@ -18,11 +18,12 @@ const CASHBACK_PERCENT: u64 = 5;
 pub mod cashback_program {
     use super::*;
 
-    /// Initialize the cashback treasury vault. Authority funds it by transferring
-    /// SOL to the returned vault PDA.
-    pub fn initialize_treasury(ctx: Context<InitializeTreasury>) -> Result<()> {
+    /// Initialize the cashback treasury vault. `authority` is the wallet allowed
+    /// to disburse cashback (the PRISM backend's treasury wallet). It is funded
+    /// by transferring SOL to the returned vault PDA.
+    pub fn initialize_treasury(ctx: Context<InitializeTreasury>, authority: Pubkey) -> Result<()> {
         let treasury = &mut ctx.accounts.treasury;
-        treasury.authority = ctx.accounts.authority.key();
+        treasury.authority = authority;
         treasury.bump = ctx.bumps.treasury;
         treasury.total_paid = 0;
         Ok(())
@@ -98,15 +99,19 @@ pub struct InitializeTreasury<'info> {
 #[derive(Accounts)]
 #[instruction(mint: Pubkey)]
 pub struct RequestCashback<'info> {
-    #[account(mut)]
-    pub user: Signer<'info>,
-    #[account(address = treasury.authority @ CashbackError::Unauthorized)]
+    /// The treasury authority (held by the PRISM backend, which attests
+    /// off-chain eligibility). Sole signer — the recipient need not sign.
+    #[account(mut, address = treasury.authority @ CashbackError::Unauthorized)]
     pub authority: Signer<'info>,
+    /// CHECK: cashback recipient; receives lamports from the treasury PDA.
+    #[account(mut)]
+    pub user: UncheckedAccount<'info>,
     #[account(mut, seeds = [b"cashback_treasury"], bump = treasury.bump)]
     pub treasury: Account<'info, Treasury>,
+    /// One claim per (user, mint) — the seeds enforce single-claim on-chain.
     #[account(
         init,
-        payer = user,
+        payer = authority,
         space = 8 + CashbackClaim::SIZE,
         seeds = [b"cashback", user.key().as_ref(), mint.as_ref()],
         bump
