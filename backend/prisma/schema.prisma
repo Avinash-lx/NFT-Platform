@@ -1,0 +1,135 @@
+// PRISM marketplace data model.
+// PostgreSQL primary store; Redis is used separately as a cache layer.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ListingStatus {
+  ACTIVE
+  SOLD
+  CANCELLED
+}
+
+enum Tier {
+  BRONZE
+  SILVER
+  GOLD
+  DIAMOND
+}
+
+/// A wallet that has interacted with PRISM.
+model User {
+  id        String   @id @default(cuid())
+  wallet    String   @unique
+  points    Int      @default(0)
+  tier      Tier     @default(BRONZE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdNfts    Nft[]            @relation("Creator")
+  listings       Listing[]        @relation("Seller")
+  purchases      Purchase[]       @relation("Buyer")
+  sales          Purchase[]       @relation("Seller")
+  rewardEvents   RewardEvent[]
+  cashbackClaims CashbackClaim[]
+}
+
+/// A minted NFT tracked off-chain (mint address is the on-chain source of truth).
+model Nft {
+  id           String   @id @default(cuid())
+  mint         String   @unique
+  name         String
+  description  String?
+  imageUri     String
+  metadataUri  String
+  collection   String?
+  royaltyBps   Int      @default(0)
+  creatorId    String
+  creator      User     @relation("Creator", fields: [creatorId], references: [id])
+  ownerWallet  String
+  createdAt    DateTime @default(now())
+
+  listings  Listing[]
+  purchases Purchase[]
+
+  @@index([collection])
+  @@index([ownerWallet])
+}
+
+/// An active or historical marketplace listing.
+model Listing {
+  id          String        @id @default(cuid())
+  nftId       String
+  nft         Nft           @relation(fields: [nftId], references: [id])
+  sellerId    String
+  seller      User          @relation("Seller", fields: [sellerId], references: [id])
+  priceLamports BigInt
+  status      ListingStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  purchase Purchase?
+
+  @@index([status])
+  @@index([priceLamports])
+}
+
+/// A completed purchase.
+model Purchase {
+  id            String   @id @default(cuid())
+  nftId         String
+  nft           Nft      @relation(fields: [nftId], references: [id])
+  listingId     String   @unique
+  listing       Listing  @relation(fields: [listingId], references: [id])
+  buyerId       String
+  buyer         User     @relation("Buyer", fields: [buyerId], references: [id])
+  sellerId      String
+  seller        User     @relation("Seller", fields: [sellerId], references: [id])
+  priceLamports BigInt
+  feeLamports   BigInt
+  pointsEarned  Int      @default(0)
+  signature     String?
+  createdAt     DateTime @default(now())
+
+  cashbackClaim CashbackClaim?
+
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([createdAt])
+}
+
+/// Loyalty point ledger entry.
+model RewardEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  points    Int
+  reason    String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+/// A single cashback payout, unique per (user, NFT/purchase).
+model CashbackClaim {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  purchaseId    String   @unique
+  purchase      Purchase @relation(fields: [purchaseId], references: [id])
+  mint          String
+  amountLamports BigInt
+  signature     String?
+  createdAt     DateTime @default(now())
+
+  @@unique([userId, mint])
+  @@index([userId])
+  @@index([createdAt])
+}

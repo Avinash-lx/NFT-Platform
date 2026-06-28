@@ -1,0 +1,14 @@
+{
+  "name": "prism-nft-marketplace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PRISM — Solana NFT Rewards Marketplace (monorepo)",
+  "scripts": {
+    "frontend": "npm --prefix frontend run dev",
+    "backend": "npm --prefix backend run dev",
+    "anchor:build": "cd programs && anchor build",
+    "anchor:test": "cd programs && anchor test",
+    "install:all": "npm --prefix frontend install && npm --prefix backend install && npm --prefix programs install"
+  },
+  "license": "MIT"
+}

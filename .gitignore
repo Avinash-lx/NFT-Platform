@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+target/
+.anchor/
+test-ledger/
+
+# Environment
+.env
+.env.local
+.env.*.local
+*.env
+
+# Keys / secrets
+*.pem
+id.json
+keypair.json
+wallet.json
+/programs/**/deploy/*.json
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Prisma
+backend/prisma/migrations/dev.db*
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Misc
+coverage/
+*.tsbuildinfo
