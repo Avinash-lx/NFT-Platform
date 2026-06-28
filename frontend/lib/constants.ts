@@ -18,7 +18,13 @@ export const PROGRAM_IDS = {
   rewards: process.env.NEXT_PUBLIC_REWARDS_PROGRAM_ID ?? "",
   cashback: process.env.NEXT_PUBLIC_CASHBACK_PROGRAM_ID ?? "",
   escrow: process.env.NEXT_PUBLIC_ESCROW_PROGRAM_ID ?? "",
+  nft: process.env.NEXT_PUBLIC_NFT_PROGRAM_ID ?? "",
+  royalty: process.env.NEXT_PUBLIC_ROYALTY_PROGRAM_ID ?? "",
 };
+
+/** Metaplex Token Metadata program (same address on all clusters). */
+export const TOKEN_METADATA_PROGRAM_ID =
+  "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s";
 
 export const MARKETPLACE_FEE_BPS = 250; // default Bronze fee
 export const SOLSCAN_BASE =

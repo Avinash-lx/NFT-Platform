@@ -2,7 +2,7 @@ import { FC, FormEvent, useState } from "react";
 import toast from "react-hot-toast";
 import { useWallet } from "@/hooks/useWallet";
 import { uploadImage, uploadMetadata, ipfsToHttp } from "@/services/ipfs";
-import { createNft as metaplexCreateNft } from "@/services/metaplex";
+import { mintNftOnChain } from "@/services/nft";
 import { api } from "@/services/api";
 import { solscanAddress } from "@/lib/constants";
 
@@ -66,14 +66,15 @@ export const MintForm: FC = () => {
         attributes: collection ? [{ trait_type: "Collection", value: collection }] : [],
       });
 
-      // 3. Mint via Metaplex
+      // 3. Mint on-chain via the PRISM nft_program (CPIs into Token Metadata).
       toast.loading("Minting NFT on Solana…", { id: toastId });
       const royaltyBps = Math.round(royaltyPct * 100);
-      const { mint } = await metaplexCreateNft(wallet, {
+      const symbol = (collection || name).slice(0, 10).toUpperCase();
+      const { mint } = await mintNftOnChain(wallet, {
         name,
-        metadataUri,
+        symbol,
+        uri: metadataUri,
         sellerFeeBasisPoints: royaltyBps,
-        collectionName: collection || undefined,
       });
 
       // 4. Persist to backend

@@ -53,10 +53,21 @@ frontend talks to the marketplace program through an Anchor client
 Rust program with correct discriminators; once you run `anchor build`, replace it
 with the generated `target/idl/marketplace_program.json` (identical shape).
 
-On-chain trading is wired end to end: listing, buying, and cancelling each send
-the corresponding Anchor instruction (`list_nft` / `buy_nft` / `cancel_listing`)
-first, then record the result in the backend. These actions require
-`NEXT_PUBLIC_MARKETPLACE_PROGRAM_ID` to point at the deployed program.
+All core actions run **on-chain through the Anchor programs**, not in the
+frontend SDK:
+
+- **Minting** → `nft_program.mint_nft` creates the SPL mint, mints one token to
+  the creator, and CPIs into the Metaplex Token Metadata program to create the
+  metadata + master edition (a true 1/1 NFT). The frontend only uploads media +
+  metadata JSON to IPFS and signs; the chain performs the mint. Requires
+  `NEXT_PUBLIC_NFT_PROGRAM_ID`.
+- **Listing / buying / cancelling** → `marketplace_program.list_nft` /
+  `buy_nft` / `cancel_listing`, with the NFT held in an escrow PDA and the fee
+  routed to the treasury. Requires `NEXT_PUBLIC_MARKETPLACE_PROGRAM_ID`.
+
+The backend is only a cache/index: it records results after the on-chain
+transaction confirms. `anchor test` exercises both the mint (Token Metadata is
+cloned into the local validator) and the list → buy flow.
 
 ### 2. Backend
 
