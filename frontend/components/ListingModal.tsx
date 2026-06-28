@@ -2,6 +2,8 @@ import { FC, useState } from "react";
 import toast from "react-hot-toast";
 import { useWallet } from "@/hooks/useWallet";
 import { api } from "@/services/api";
+import { listNftOnChain } from "@/services/marketplace";
+import { solToLamports } from "@/lib/format";
 
 interface ListingModalProps {
   mint: string;
@@ -12,12 +14,8 @@ interface ListingModalProps {
 
 /**
  * Modal for listing an owned NFT. The on-chain `list_nft` instruction (which
- * locks the NFT in the escrow PDA) is executed first; on confirmation the
- * listing is recorded in the backend.
- *
- * NOTE: the Anchor program call is wired through the deployed marketplace
- * program once `NEXT_PUBLIC_MARKETPLACE_PROGRAM_ID` is set. Until then the
- * backend records the listing so the UI flow is testable.
+ * locks the NFT in the escrow PDA owned by the listing PDA) executes first; on
+ * confirmation the listing is recorded in the backend with the tx signature.
  */
 export const ListingModal: FC<ListingModalProps> = ({ mint, name, onClose, onListed }) => {
   const wallet = useWallet();
@@ -39,8 +37,9 @@ export const ListingModal: FC<ListingModalProps> = ({ mint, name, onClose, onLis
     const id = toast.loading("Locking NFT in escrow…");
     try {
       // 1. On-chain: marketplace_program.list_nft(price) → escrow PDA.
-      //    (Executed via Anchor once the program is deployed.)
+      await listNftOnChain(wallet, mint, solToLamports(priceSol));
       // 2. Off-chain: record the listing.
+      toast.loading("Recording listing…", { id });
       await api.createListing({ mint, priceSol, wallet: wallet.address }, wallet.authSigner);
       toast.success("NFT listed!", { id });
       onListed?.();

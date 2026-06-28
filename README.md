@@ -46,7 +46,17 @@ anchor test          # runs against a local validator
 anchor deploy --provider.cluster devnet
 ```
 
-After deploy, copy the printed program IDs into the relevant `.env` files.
+After deploy, copy the printed program IDs into the relevant `.env` files. The
+frontend talks to the marketplace program through an Anchor client
+(`frontend/services/marketplace.ts`) using the IDL at
+`frontend/idl/marketplace_program.ts`. That IDL is hand-generated to mirror the
+Rust program with correct discriminators; once you run `anchor build`, replace it
+with the generated `target/idl/marketplace_program.json` (identical shape).
+
+On-chain trading is wired end to end: listing, buying, and cancelling each send
+the corresponding Anchor instruction (`list_nft` / `buy_nft` / `cancel_listing`)
+first, then record the result in the backend. These actions require
+`NEXT_PUBLIC_MARKETPLACE_PROGRAM_ID` to point at the deployed program.
 
 ### 2. Backend
 

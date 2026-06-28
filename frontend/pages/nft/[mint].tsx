@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { api } from "@/services/api";
+import { buyNftOnChain } from "@/services/marketplace";
 import { useWallet } from "@/hooks/useWallet";
 import { ipfsToHttp } from "@/services/ipfs";
 import { truncateAddress, formatSol, bpsToPercent, lamportsToSol } from "@/lib/format";
@@ -50,11 +51,22 @@ const NftDetailPage: NextPage = () => {
       return;
     }
     const fee = (priceSol * MARKETPLACE_FEE_BPS) / 10000;
-    if (!window.confirm(`Buy for ${formatSol(priceSol)} + ${formatSol(fee)} fee?`)) return;
+    if (
+      !window.confirm(
+        `Buy for ${formatSol(priceSol)}? (${formatSol(fee)} marketplace fee is deducted from the sale)`
+      )
+    )
+      return;
 
-    const id = toast.loading("Processing purchase…");
+    const id = toast.loading("Sending transaction…");
     try {
-      await api.buyNft({ listingId: listing.id, buyerWallet: wallet.address }, wallet.authSigner);
+      // On-chain settlement first, then record off-chain with the signature.
+      const signature = await buyNftOnChain(wallet, nft!.mint, nft!.ownerWallet);
+      toast.loading("Recording purchase…", { id });
+      await api.buyNft(
+        { listingId: listing.id, buyerWallet: wallet.address, signature },
+        wallet.authSigner
+      );
       toast.success("Purchased!", { id });
       const updated = (await api.getNft(nft!.mint)) as NftDetail;
       setNft(updated);

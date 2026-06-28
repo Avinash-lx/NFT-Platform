@@ -3,7 +3,9 @@ import { useEffect, useState } from "react";
 import { useWallet } from "@/hooks/useWallet";
 import { useRewards } from "@/hooks/useRewards";
 import { useNFTs } from "@/hooks/useNFTs";
+import toast from "react-hot-toast";
 import { api } from "@/services/api";
+import { cancelListingOnChain } from "@/services/marketplace";
 import { DashboardCharts, DashboardChartsData } from "@/components/DashboardCharts";
 import { RewardBadge } from "@/components/RewardBadge";
 import { ListingModal } from "@/components/ListingModal";
@@ -33,11 +35,33 @@ const Stat = ({ value, label }: { value: string | number; label: string }) => (
 );
 
 const DashboardPage: NextPage = () => {
-  const { address, connected } = useWallet();
+  const wallet = useWallet();
+  const { address, connected } = wallet;
   const { rewards } = useRewards(address);
   const { nfts, refresh: refreshNfts } = useNFTs(address);
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [listing, setListing] = useState<{ mint: string; name: string } | null>(null);
+  const [cancelling, setCancelling] = useState<string | null>(null);
+
+  async function cancelListing(mint: string, listingId: string) {
+    if (!wallet.authSigner || !address) {
+      toast.error("Connect your wallet");
+      return;
+    }
+    setCancelling(listingId);
+    const id = toast.loading("Cancelling listing…");
+    try {
+      // On-chain: return the NFT from escrow, then mark the listing cancelled.
+      await cancelListingOnChain(wallet, mint);
+      await api.cancelListing(listingId, address, wallet.authSigner);
+      toast.success("Listing cancelled", { id });
+      refreshNfts();
+    } catch (e) {
+      toast.error((e as Error).message || "Cancel failed", { id });
+    } finally {
+      setCancelling(null);
+    }
+  }
 
   useEffect(() => {
     if (!address) {
@@ -122,7 +146,16 @@ const DashboardPage: NextPage = () => {
                       List for sale
                     </button>
                   )}
-                  {active && <p className="muted" style={{ marginTop: 8 }}>Listed</p>}
+                  {active && (
+                    <button
+                      className="btn"
+                      style={{ marginTop: 8, width: "100%" }}
+                      disabled={cancelling === active.id}
+                      onClick={() => cancelListing(nft.mint, active.id)}
+                    >
+                      {cancelling === active.id ? "Cancelling…" : "Cancel listing"}
+                    </button>
+                  )}
                 </div>
               );
             })}

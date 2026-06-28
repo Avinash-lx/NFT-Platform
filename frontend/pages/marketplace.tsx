@@ -5,6 +5,7 @@ import { useMarketplace, MarketplaceFilters } from "@/hooks/useMarketplace";
 import { useWallet } from "@/hooks/useWallet";
 import { NFTCard } from "@/components/NFTCard";
 import { api } from "@/services/api";
+import { buyNftOnChain } from "@/services/marketplace";
 import { bpsToPercent, formatSol } from "@/lib/format";
 import { MARKETPLACE_FEE_BPS } from "@/lib/constants";
 
@@ -27,25 +28,34 @@ const MarketplacePage: NextPage = () => {
     [listings]
   );
 
-  async function confirmAndBuy(listingId: string, priceSol: number) {
+  async function confirmAndBuy(listing: {
+    id: string;
+    priceSol: number;
+    nft: { mint: string };
+    seller: { wallet: string };
+  }) {
     if (!wallet.authSigner || !wallet.address) {
       toast.error("Connect your wallet to buy");
       return;
     }
+    const { priceSol } = listing;
     const fee = (priceSol * MARKETPLACE_FEE_BPS) / 10000;
     const ok = window.confirm(
-      `Buy this NFT?\n\nPrice: ${formatSol(priceSol)}\nMarketplace fee (${bpsToPercent(
+      `Buy this NFT?\n\nYou pay: ${formatSol(priceSol)}\nMarketplace fee (${bpsToPercent(
         MARKETPLACE_FEE_BPS
-      )}): ${formatSol(fee)}\nTotal: ${formatSol(priceSol + fee)}`
+      )}, deducted from sale): ${formatSol(fee)}\nSeller receives: ${formatSol(priceSol - fee)}`
     );
     if (!ok) return;
 
-    const id = toast.loading("Processing purchase…");
+    const id = toast.loading("Sending transaction…");
     try {
-      // On confirmation, the marketplace_program transfers SOL to escrow and
-      // releases the NFT; the backend then settles points + ownership.
+      // 1. On-chain: marketplace_program.buy_nft() transfers SOL (minus fee) +
+      //    the NFT from escrow to the buyer.
+      const signature = await buyNftOnChain(wallet, listing.nft.mint, listing.seller.wallet);
+      // 2. Off-chain: settle ownership + reward points.
+      toast.loading("Recording purchase…", { id });
       const res = (await api.buyNft(
-        { listingId, buyerWallet: wallet.address },
+        { listingId: listing.id, buyerWallet: wallet.address, signature },
         wallet.authSigner
       )) as { points: number };
       toast.success(`Purchased! +${res.points} reward points`, { id });
@@ -117,7 +127,7 @@ const MarketplacePage: NextPage = () => {
               ownerWallet={l.nft.ownerWallet}
               priceSol={l.priceSol}
               connectedWallet={wallet.address}
-              onBuy={() => confirmAndBuy(l.id, l.priceSol)}
+              onBuy={() => confirmAndBuy(l)}
             />
           ))}
         </div>
