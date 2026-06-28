@@ -2,6 +2,7 @@ import type { NextPage } from "next";
 import { useEffect, useState } from "react";
 import { useWallet } from "@/hooks/useWallet";
 import { useRewards } from "@/hooks/useRewards";
+import { useOnchainRewards } from "@/hooks/useOnchainRewards";
 import { useNFTs } from "@/hooks/useNFTs";
 import toast from "react-hot-toast";
 import { api } from "@/services/api";
@@ -38,6 +39,7 @@ const DashboardPage: NextPage = () => {
   const wallet = useWallet();
   const { address, connected } = wallet;
   const { rewards } = useRewards(address);
+  const { data: onchain, available: onchainAvailable } = useOnchainRewards(address);
   const { nfts, refresh: refreshNfts } = useNFTs(address);
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [listing, setListing] = useState<{ mint: string; name: string } | null>(null);
@@ -85,12 +87,24 @@ const DashboardPage: NextPage = () => {
 
   const s = data?.stats;
 
+  // Prefer on-chain rewards/cashback (read straight from the programs) and fall
+  // back to the backend mirror when the programs aren't deployed.
+  const points = onchain?.points ?? rewards?.points;
+  const tier = onchain?.tier ?? rewards?.tier;
+  const feeBps = onchain?.feeBps ?? rewards?.feeBps;
+  const nextTier = onchain?.nextTier ?? rewards?.nextTier;
+  const cashbackEarnedSol = onchain ? onchain.cashbackEarnedSol : s?.cashbackEarnedSol;
+  const rewardsSource = onchainAvailable && onchain ? "on-chain" : "indexed";
+
   return (
     <section className="section">
       <div className="row between">
         <h1>Dashboard</h1>
-        {rewards && <RewardBadge tier={rewards.tier} points={rewards.points} />}
+        {tier !== undefined && <RewardBadge tier={tier} points={points} />}
       </div>
+      <p className="muted" style={{ marginTop: -8 }}>
+        Rewards source: {rewardsSource}
+      </p>
 
       <div className="stats" style={{ margin: "20px 0" }}>
         <Stat value={s ? formatSol(s.walletBalanceSol) : "—"} label="Wallet Balance" />
@@ -98,18 +112,25 @@ const DashboardPage: NextPage = () => {
         <Stat value={s?.nftsListed ?? "—"} label="NFTs Listed" />
         <Stat value={s ? formatSol(s.totalPurchasesSol) : "—"} label="Total Purchases" />
         <Stat value={s ? formatSol(s.totalSalesSol) : "—"} label="Total Sales" />
-        <Stat value={s ? formatSol(s.cashbackEarnedSol) : "—"} label="Cashback Earned" />
+        <Stat
+          value={cashbackEarnedSol !== undefined ? formatSol(cashbackEarnedSol) : "—"}
+          label="Cashback Earned"
+        />
         <Stat value={s ? formatSol(s.portfolioValueSol) : "—"} label="Portfolio Value" />
         <Stat
-          value={rewards ? `${rewards.points.toLocaleString()} pts` : "—"}
-          label={rewards ? `${rewards.tier} · ${bpsToPercent(rewards.feeBps)} fee` : "Rewards"}
+          value={points !== undefined ? `${points.toLocaleString()} pts` : "—"}
+          label={
+            tier !== undefined && feeBps !== undefined
+              ? `${tier} · ${bpsToPercent(feeBps)} fee`
+              : "Rewards"
+          }
         />
       </div>
 
-      {rewards?.nextTier && (
+      {nextTier && (
         <p className="muted">
-          {rewards.nextTier.pointsToNext.toLocaleString()} pts to {rewards.nextTier.next} (
-          {rewards.nextTier.progressPct}% there)
+          {nextTier.pointsToNext.toLocaleString()} pts to {nextTier.next} (
+          {nextTier.progressPct}% there)
         </p>
       )}
 
