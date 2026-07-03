@@ -14,7 +14,7 @@ use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{self, CloseAccount, Mint, Token, TokenAccount, Transfer};
 use rewards_program::program::RewardsProgram;
 
-declare_id!("MKT1111111111111111111111111111111111111111");
+declare_id!("DYkZ2FuGnT6aU1Kww56sLRRvppyAf4Hfk6VoBLwjbpMk");
 
 /// Hard cap on the marketplace fee to protect users (10%).
 const MAX_FEE_BPS: u16 = 1_000;

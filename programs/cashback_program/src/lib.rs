@@ -9,7 +9,7 @@
 
 use anchor_lang::prelude::*;
 
-declare_id!("CSH1111111111111111111111111111111111111111");
+declare_id!("CHmLx6D4XB2GUSLfGv1xquZUfGQv9S5y32sKhBGzJpiC");
 
 /// Cashback percentage (5%).
 const CASHBACK_PERCENT: u64 = 5;

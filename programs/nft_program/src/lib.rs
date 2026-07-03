@@ -18,7 +18,7 @@ use anchor_spl::metadata::{
 };
 use anchor_spl::token::{mint_to, Mint, MintTo, Token, TokenAccount};
 
-declare_id!("NFT1111111111111111111111111111111111111111");
+declare_id!("2onF96i7PpyYGXsPsEEEgrmR2Xh17HWesYwJynYd13YT");
 
 const MAX_NAME_LEN: usize = 32;
 const MAX_SYMBOL_LEN: usize = 10;

@@ -16,7 +16,7 @@
 
 use anchor_lang::prelude::*;
 
-declare_id!("RWD1111111111111111111111111111111111111111");
+declare_id!("E2Th7noUTVQFxg2s3B4KTEdfu5pyRdKu7TJhquTxW8bh");
 
 #[program]
 pub mod rewards_program {

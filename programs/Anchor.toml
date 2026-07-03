@@ -5,13 +5,15 @@ anchor_version = "0.30.1"
 resolution = true
 skip-lint = false
 
+# Placeholder program IDs (valid Base58). `anchor keys sync` / deploy.sh
+# overwrite these with the real deployed keypair addresses.
 [programs.devnet]
-marketplace_program = "MKT1111111111111111111111111111111111111111"
-escrow_program = "ESC1111111111111111111111111111111111111111"
-rewards_program = "RWD1111111111111111111111111111111111111111"
-cashback_program = "CSH1111111111111111111111111111111111111111"
-nft_program = "NFT1111111111111111111111111111111111111111"
-royalty_program = "ROY1111111111111111111111111111111111111111"
+marketplace_program = "DYkZ2FuGnT6aU1Kww56sLRRvppyAf4Hfk6VoBLwjbpMk"
+escrow_program = "HKuqJjVmWWJZKxAib8EdB88CgbQkQN6Pn14mTsYycUKi"
+rewards_program = "E2Th7noUTVQFxg2s3B4KTEdfu5pyRdKu7TJhquTxW8bh"
+cashback_program = "CHmLx6D4XB2GUSLfGv1xquZUfGQv9S5y32sKhBGzJpiC"
+nft_program = "2onF96i7PpyYGXsPsEEEgrmR2Xh17HWesYwJynYd13YT"
+royalty_program = "Frb2vEYpMt5QeLxQTMW1Yv2qfTXPAqfMJPCYHwCX8yEN"
 
 [registry]
 url = "https://api.apr.dev"

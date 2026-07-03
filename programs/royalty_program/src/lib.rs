@@ -7,7 +7,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
 
-declare_id!("ROY1111111111111111111111111111111111111111");
+declare_id!("Frb2vEYpMt5QeLxQTMW1Yv2qfTXPAqfMJPCYHwCX8yEN");
 
 const BPS_DENOMINATOR: u64 = 10_000;
 
