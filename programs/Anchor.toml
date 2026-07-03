@@ -5,6 +5,18 @@ anchor_version = "0.30.1"
 resolution = true
 skip-lint = false
 
+# The program crates live directly under this workspace root (not the default
+# `programs/*` subfolder), so list them explicitly for `anchor build`.
+[workspace]
+members = [
+    "marketplace_program",
+    "escrow_program",
+    "rewards_program",
+    "cashback_program",
+    "nft_program",
+    "royalty_program",
+]
+
 # Placeholder program IDs (valid Base58). `anchor keys sync` / deploy.sh
 # overwrite these with the real deployed keypair addresses.
 [programs.devnet]
