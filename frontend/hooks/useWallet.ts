@@ -31,6 +31,10 @@ export function useWallet() {
       ]);
       setBalance(bal);
       setTransactions(txs);
+    } catch (err) {
+      // Never let an RPC hiccup (rate limits, transient network) break the
+      // connected state or surface as an unhandled rejection.
+      console.warn("[useWallet] balance/tx refresh failed:", (err as Error).message);
     } finally {
       setLoading(false);
     }
